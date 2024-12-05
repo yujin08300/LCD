@@ -1,16 +1,12 @@
-import cv2
 import os
 import time
-import threading
-from IPC_Library import IPC_SendPacketWithIPCHeader, IPC_ReceivePacketFromIPCHeader
-from IPC_Library import TCC_IPC_CMD_CA72_EDUCATION_CAN_DEMO, IPC_IPC_CMD_CA72_EDUCATION_CAN_DEMO_START
-from IPC_Library import parse_hex_data, parse_string_data
 
-# GPIO and LCD setup
+# GPIO path
 GPIO_BASE_PATH = "/sys/class/gpio"
 GPIO_EXPORT_PATH = os.path.join(GPIO_BASE_PATH, "export")
 GPIO_UNEXPORT_PATH = os.path.join(GPIO_BASE_PATH, "unexport")
 
+# GPIO pin configuration
 LCD_RS = 117
 LCD_E = 121
 LCD_D4 = 114
@@ -28,6 +24,7 @@ LCD_LINE_2 = 0xC0
 E_PULSE = 0.0005
 E_DELAY = 0.0005
 
+# GPIO control functions
 def gpio_export(pin):
     if not os.path.exists(os.path.join(GPIO_BASE_PATH, f"gpio{pin}")):
         with open(GPIO_EXPORT_PATH, 'w') as f:
@@ -47,6 +44,7 @@ def gpio_write(pin, value):
     with open(value_path, 'w') as f:
         f.write(str(value))
 
+# LCD initialization
 def lcd_init():
     gpio_export(LCD_E)
     gpio_export(LCD_RS)
@@ -77,13 +75,13 @@ def lcd_byte(bits, mode):
     gpio_write(LCD_D6, "0")
     gpio_write(LCD_D7, "0")
 
-    if bits & 0x10 == 0x10:
+    if bits & 0x10:
         gpio_write(LCD_D4, "1")
-    if bits & 0x20 == 0x20:
+    if bits & 0x20:
         gpio_write(LCD_D5, "1")
-    if bits & 0x40 == 0x40:
+    if bits & 0x40:
         gpio_write(LCD_D6, "1")
-    if bits & 0x80 == 0x80:
+    if bits & 0x80:
         gpio_write(LCD_D7, "1")
 
     lcd_toggle_enable()
@@ -93,13 +91,13 @@ def lcd_byte(bits, mode):
     gpio_write(LCD_D6, "0")
     gpio_write(LCD_D7, "0")
 
-    if bits & 0x01 == 0x01:
+    if bits & 0x01:
         gpio_write(LCD_D4, "1")
-    if bits & 0x02 == 0x02:
+    if bits & 0x02:
         gpio_write(LCD_D5, "1")
-    if bits & 0x04 == 0x04:
+    if bits & 0x04:
         gpio_write(LCD_D6, "1")
-    if bits & 0x08 == 0x08:
+    if bits & 0x08:
         gpio_write(LCD_D7, "1")
 
     lcd_toggle_enable()
@@ -111,73 +109,52 @@ def lcd_toggle_enable():
     gpio_write(LCD_E, "0")
     time.sleep(E_DELAY)
 
+# Function to display message on LCD
 def lcd_string(message, line):
     message = message.ljust(LCD_WIDTH, " ")
     lcd_byte(line, LCD_CMD)
     for i in range(LCD_WIDTH):
         lcd_byte(ord(message[i]), LCD_CHR)
 
-# CAN message send
-def sendtoCAN(channel, canId, sndDataHex):
-    sndData = parse_hex_data(sndDataHex)
-    uiLength = len(sndData)
-    IPC_SendPacketWithIPCHeader(
-        "/dev/tcc_ipc_micom", channel, TCC_IPC_CMD_CA72_EDUCATION_CAN_DEMO,
-        IPC_IPC_CMD_CA72_EDUCATION_CAN_DEMO_START, canId, sndData, uiLength
-    )
-
-# Object detection and LCD display
-def detect_objects(image):
-    cascade_face = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-    cascade_eye = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_eye.xml")
-    cascade_smile = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_smile.xml")
-    cascade_cat = cv2.CascadeClassifier("haarcascades/haarcascade_frontalcatface.xml")
-
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-    face_detections = cascade_face.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
-    for (x, y, w, h) in face_detections:
-        cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
-        lcd_string("Face Detected", LCD_LINE_1)
-        sendtoCAN(0, 1, "01")
-
-        roi_gray = gray[y:y+h, x:x+w]
-
-        eye_detections = cascade_eye.detectMultiScale(roi_gray, scaleFactor=1.1, minNeighbors=10)
-        for (ex, ey, ew, eh) in eye_detections:
-            cv2.rectangle(image, (x + ex, y + ey), (x + ex + ew, y + ey + eh), (255, 0, 0), 2)
-            lcd_string("Eye Detected", LCD_LINE_2)
-            sendtoCAN(1, 2, "02")
-
-        smile_detections = cascade_smile.detectMultiScale(roi_gray, scaleFactor=1.8, minNeighbors=20)
-        for (sx, sy, sw, sh) in smile_detections:
-            cv2.rectangle(image, (x + sx, y + sy), (x + sx + sw, y + sy + sh), (0, 0, 255), 2)
-            lcd_string("Smile Detected", LCD_LINE_1)
-            sendtoCAN(2, 3, "03")
-
-    cat_detections = cascade_cat.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
-    for (x, y, w, h) in cat_detections:
-        cv2.rectangle(image, (x, y), (x + w, y + h), (255, 255, 0), 2)
-        lcd_string("Cat Detected", LCD_LINE_1)
-        sendtoCAN(3, 4, "04")
-
-    return image
+# Mock function to simulate CAN message reception
+def receive_can_message():
+    # Simulate CAN messages with a delay
+    time.sleep(3)  # Simulate delay for message reception
+    return {"canId": 1, "data": "Face"}
 
 # Main program
 if __name__ == "__main__":
-    lcd_init()
-    cap = cv2.VideoCapture(0)
+    try:
+        lcd_init()  # Initialize the LCD
+        while True:
+            # Simulate receiving a CAN message
+            message = receive_can_message()
+            can_id = message["canId"]
+            data = message["data"]
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
+            # Update LCD based on CAN message
+            if can_id == 1:
+                lcd_string("Face Detected", LCD_LINE_1)
+                lcd_string(data, LCD_LINE_2)
+            elif can_id == 2:
+                lcd_string("Eyes Detected", LCD_LINE_1)
+                lcd_string(data, LCD_LINE_2)
+            elif can_id == 3:
+                lcd_string("Smile Detected", LCD_LINE_1)
+                lcd_string(data, LCD_LINE_2)
+            elif can_id == 4:
+                lcd_string("Cat Detected", LCD_LINE_1)
+                lcd_string(data, LCD_LINE_2)
+            else:
+                lcd_string("Unknown ID", LCD_LINE_1)
+                lcd_string(str(can_id), LCD_LINE_2)
 
-        frame = detect_objects(frame)
-        cv2.imshow("Object Detection", frame)
-
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
+    except KeyboardInterrupt:
+        print("\nProgram stopped by User")
+    finally:
+        gpio_unexport(LCD_E)
+        gpio_unexport(LCD_RS)
+        gpio_unexport(LCD_D4)
+        gpio_unexport(LCD_D5)
+        gpio_unexport(LCD_D6)
+        gpio_unexport(LCD_D7)
