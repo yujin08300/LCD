@@ -150,10 +150,10 @@ if __name__ == "__main__":
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
 
             # Feature detection
             can_id, message = detect_features(frame)
